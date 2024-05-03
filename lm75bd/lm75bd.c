@@ -8,6 +8,7 @@
 #include <math.h>
 
 /* LM75BD Registers (p.8) */
+#define LM75BD_REG_TEMP 0x00U  /* Temperature Register (R) */
 #define LM75BD_REG_CONF 0x01U  /* Configuration Register (R/W) */
 
 error_code_t lm75bdInit(lm75bd_config_t *config) {
@@ -27,7 +28,28 @@ error_code_t lm75bdInit(lm75bd_config_t *config) {
 
 error_code_t readTempLM75BD(uint8_t devAddr, float *temp) {
   /* Implement this driver function */
-  
+if (temp == NULL) return ERR_CODE_INVALID_ARG;
+
+error_code_t errCode;
+
+// Send the address of the temperature register
+RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, &LM75BD_REG_TEMP, 1));
+
+// Read the temperature data
+uint8_t tempData[2] = {0};
+RETURN_IF_ERROR_CODE(i2cReceiveFrom(devAddr, tempData, 2));
+
+// Combine the two bytes into a single 16-bit value
+uint16_t tempRaw = (tempData[0] << 8) | tempData[1];
+
+if (tempRaw & 0x80) {
+  // If D10 bit is set, the temperature is negative and must be converted into two's complement
+  tempRaw = ~tempRaw + 1;
+  *temp = -tempRaw * 0.125f;
+} else {
+  // If D10 bit is not set, the temperature is positive
+  *temp = tempRaw * 0.125f;
+
   return ERR_CODE_SUCCESS;
 }
 
