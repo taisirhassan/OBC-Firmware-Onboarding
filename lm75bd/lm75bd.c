@@ -28,12 +28,15 @@ error_code_t lm75bdInit(lm75bd_config_t *config) {
 
 error_code_t readTempLM75BD(uint8_t devAddr, float *temp) {
   /* Implement this driver function */
+  error_code_t errCode;
+
+  // Check if the temperature pointer is NULL
 if (temp == NULL) return ERR_CODE_INVALID_ARG;
 
-error_code_t errCode;
+uint8_t tempRegData = LM75BD_REG_TEMP;
 
 // Send the address of the temperature register
-RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, &LM75BD_REG_TEMP, 1));
+RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, &tempRegData, 1));
 
 // Read the temperature data
 uint8_t tempData[2] = {0};
@@ -42,15 +45,19 @@ RETURN_IF_ERROR_CODE(i2cReceiveFrom(devAddr, tempData, 2));
 // Combine the two bytes into a single 16-bit value
 uint16_t tempRaw = (tempData[0] << 8) | tempData[1];
 
-if (tempRaw & 0x80) {
+// Shift the value to the right by 5 bits to get the 11 bits of temperature data
+tempRaw >>= 5;
+
+if (tempRaw & 0x400) {
   // If D10 bit is set, the temperature is negative and must be converted into two's complement
-  tempRaw = ~tempRaw + 1;
+  tempRaw = (~tempRaw & 0x7FF) + 1; // Mask the 11 bits and add 1 to get the two's complement
   *temp = -tempRaw * 0.125f;
 } else {
   // If D10 bit is not set, the temperature is positive
   *temp = tempRaw * 0.125f;
 
   return ERR_CODE_SUCCESS;
+}
 }
 
 #define CONF_WRITE_BUFF_SIZE 2U

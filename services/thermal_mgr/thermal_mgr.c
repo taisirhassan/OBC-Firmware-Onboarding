@@ -58,10 +58,18 @@ if(xQueueSend(thermalMgrQueueHandle, event, 0) != pdTRUE) {
 
 void osHandlerLM75BD(void) {
   /* Implement this function */
+  // Create an event variable to store the OS interrupt event
+  thermal_mgr_event_t interrupt = {
+    .type = THERMAL_MGR_EVENT_OS_INTERRUPT
+  };
+  
+  // Send the OS interrupt event to the thermal manager queue
+  thermalMgrSendEvent(&interrupt);
 }
 
 static void thermalMgr(void *pvParameters) {
   /* Implement this task */
+    float tempC;
   while (1) {
   // Create an event variable to store incoming events from the queue
   thermal_mgr_event_t event;
@@ -71,13 +79,22 @@ lm75bd_config_t *config = (lm75bd_config_t *)pvParameters;
   // The type of the received event is checked.
     switch (event.type) {
       // If the event type is THERMAL_MGR_EVENT_MEASURE_TEMP_CMD, the task reads the current temperature from the LM75BD sensor.
-      case THERMAL_MGR_EVENT_MEASURE_TEMP_CMD:
-        // Read the temperature from the LM75BD
-        float tempC;
+      case THERMAL_MGR_EVENT_MEASURE_TEMP_CMD: {
+        // Read the temperature from the LM75BD sensor
         if (readTempLM75BD(config->devAddr, &tempC) == ERR_CODE_SUCCESS) {
           addTemperatureTelemetry(tempC);
         }
         break;
+      }
+      case THERMAL_MGR_EVENT_OS_INTERRUPT: {
+        // If the event type is THERMAL_MGR_EVENT_OS_INTERRUPT, the task checks if the hysteresis condition is met.
+       if (tempC > config->hysteresisThresholdCelsius) {
+          overTemperatureDetected();
+        } else {
+          safeOperatingConditions();
+        }
+        break;
+      }
         // If the event type is not recognized, the task does nothing.
       default:
         break;
