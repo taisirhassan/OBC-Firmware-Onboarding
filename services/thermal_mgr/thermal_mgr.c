@@ -71,6 +71,7 @@ static void thermalMgr(void *pvParameters) {
   /* Implement this task */
     float tempC;
   while (1) {
+    error_code_t errCode;
   // Create an event variable to store incoming events from the queue
   thermal_mgr_event_t event;
   // Cast the pvParameters to the configuration struct
@@ -81,13 +82,18 @@ lm75bd_config_t *config = (lm75bd_config_t *)pvParameters;
       // If the event type is THERMAL_MGR_EVENT_MEASURE_TEMP_CMD, the task reads the current temperature from the LM75BD sensor.
       case THERMAL_MGR_EVENT_MEASURE_TEMP_CMD: {
         // Read the temperature from the LM75BD sensor
-        if (readTempLM75BD(config->devAddr, &tempC) == ERR_CODE_SUCCESS) {
+        errCode = readTempLM75BD(config->devAddr, &tempC);
+        if (errCode == ERR_CODE_SUCCESS) {
           addTemperatureTelemetry(tempC);
         }
         break;
       }
       case THERMAL_MGR_EVENT_OS_INTERRUPT: {
         // If the event type is THERMAL_MGR_EVENT_OS_INTERRUPT, the task checks if the hysteresis condition is met.
+        if(errCode != ERR_CODE_SUCCESS) {
+          LOG_ERROR_CODE(errCode);
+          continue;
+        }
        if (tempC > config->hysteresisThresholdCelsius) {
           overTemperatureDetected();
         } else {
