@@ -56,8 +56,9 @@ if (tempRaw & 0x400) {
   // If D10 bit is not set, the temperature is positive
   *temp = tempRaw * 0.125f;
 
-  return ERR_CODE_SUCCESS;
+
 }
+  return ERR_CODE_SUCCESS;
 }
 
 #define CONF_WRITE_BUFF_SIZE 2U
