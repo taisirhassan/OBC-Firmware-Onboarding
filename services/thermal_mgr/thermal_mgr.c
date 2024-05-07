@@ -49,6 +49,10 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
     return ERR_CODE_INVALID_ARG;
   }
 
+  if (thermalMgrQueueHandle == NULL) {
+    return ERR_CODE_INVALID_STATE;
+  }
+
   // Send the event to the queue. If the queue is full, return an error code.
 if(xQueueSend(thermalMgrQueueHandle, event, 0) != pdTRUE) {
     return ERR_CODE_QUEUE_FULL;
@@ -71,26 +75,32 @@ void osHandlerLM75BD(void) {
 static void thermalMgr(void *pvParameters) {
   /* Implement this task */
     float tempC;
+     // Cast the pvParameters to the configuration struct
+lm75bd_config_t *config = (lm75bd_config_t *)pvParameters;
   while (1) {
     error_code_t errCode;
   // Create an event variable to store incoming events from the queue
   thermal_mgr_event_t event;
-  // Cast the pvParameters to the configuration struct
-lm75bd_config_t *config = (lm75bd_config_t *)pvParameters;
- if(xQueueReceive(thermalMgrQueueHandle, &event, portMAX_DELAY) == pdTRUE) {
+ 
+if(xQueueReceive(thermalMgrQueueHandle, &event, portMAX_DELAY) != pdTRUE) {
+    continue;
+  }
   // The type of the received event is checked.
     switch (event.type) {
       // If the event type is THERMAL_MGR_EVENT_MEASURE_TEMP_CMD, the task reads the current temperature from the LM75BD sensor.
       case THERMAL_MGR_EVENT_MEASURE_TEMP_CMD: {
         // Read the temperature from the LM75BD sensor
         errCode = readTempLM75BD(config->devAddr, &tempC);
-        if (errCode == ERR_CODE_SUCCESS) {
-          addTemperatureTelemetry(tempC);
+        if (errCode != ERR_CODE_SUCCESS) {
+          LOG_ERROR_CODE(errCode);
+          continue;
         }
+        addTemperatureTelemetry(tempC);
         break;
       }
       case THERMAL_MGR_EVENT_OS_INTERRUPT: {
         // If the event type is THERMAL_MGR_EVENT_OS_INTERRUPT, the task checks if the hysteresis condition is met.
+        errCode = readTempLM75BD(config->devAddr, &tempC);
         if(errCode != ERR_CODE_SUCCESS) {
           LOG_ERROR_CODE(errCode);
           continue;
@@ -104,11 +114,15 @@ lm75bd_config_t *config = (lm75bd_config_t *)pvParameters;
       }
         // If the event type is not recognized, the task does nothing.
       default:
+      if (errCode != ERR_CODE_SUCCESS) {
+          LOG_ERROR_CODE(errCode);
+          continue;
+        }
         break;
     }
   }
   }
-}
+
    
 
 void addTemperatureTelemetry(float tempC) {

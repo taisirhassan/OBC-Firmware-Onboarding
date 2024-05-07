@@ -42,24 +42,14 @@ RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, &tempRegData, 1));
 uint8_t tempData[2] = {0};
 RETURN_IF_ERROR_CODE(i2cReceiveFrom(devAddr, tempData, 2));
 
-// Combine the two bytes into a single 16-bit value
-uint16_t tempRaw = (tempData[0] << 8) | tempData[1];
-
-// Shift the value to the right by 5 bits to get the 11 bits of temperature data
+// Convert the temperature data to degrees Celsius
+int16_t tempRaw = ((int16_t)tempData[0] << 8) | tempData[1];
 tempRaw >>= 5;
+*temp = tempRaw * 0.125f;
 
-if (tempRaw & 0x400) {
-  // If D10 bit is set, the temperature is negative and must be converted into two's complement
-  tempRaw = (~tempRaw & 0x7FF) + 1; // Mask the 11 bits and add 1 to get the two's complement
-  *temp = -tempRaw * 0.125f;
-} else {
-  // If D10 bit is not set, the temperature is positive
-  *temp = tempRaw * 0.125f;
-
-
-}
   return ERR_CODE_SUCCESS;
 }
+
 
 #define CONF_WRITE_BUFF_SIZE 2U
 error_code_t writeConfigLM75BD(uint8_t devAddr, uint8_t osFaultQueueSize, uint8_t osPolarity,
